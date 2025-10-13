@@ -1,0 +1,55 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-ast
+      - id: fix-byte-order-marker
+      - id: check-case-conflict
+      - id: check-executables-have-shebangs
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+        exclude: ^charts/templates/.*\.yaml$
+      - id: check-json
+        exclude: ^scripts/json/.*\.json$
+      - id: pretty-format-json
+        args: [--autofix]
+        exclude: ^scripts/json/.*\.json$
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-added-large-files
+        args: ["--maxkb=4000"]
+      - id: check-merge-conflict
+      - id: debug-statements
+
+  - repo: https://github.com/abravalheri/validate-pyproject
+    rev: v0.24.1
+    hooks:
+      - id: validate-pyproject
+        name: validate-pyproject
+
+  - repo: https://github.com/crate-ci/typos
+    rev: v1
+    hooks:
+      - id: typos
+        exclude: ^alembic/versions/|^api/constants.py$|^scripts/json/.*\.json$
+
+  - repo: https://github.com/rtts/djhtml
+    rev: 3.0.10
+    hooks:
+      - id: djhtml
+        files: .*/templates/.*\.html$
+
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.21.0
+    hooks:
+      - id: pyupgrade
+        args: [--py314-plus]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: "v0.14.0"
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
