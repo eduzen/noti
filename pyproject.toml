@@ -8,6 +8,7 @@ dependencies = [
     "celery>=5.5.3",
     "django>=5.2.7",
     "django-celery-results>=2.6.0",
+    "django-filter>=24.4",
     "djangorestframework>=3.16.1",
     "drf-spectacular>=0.28.0",
     "gunicorn>=23.0.0",
@@ -15,6 +16,7 @@ dependencies = [
     "psycopg[binary]>=3.2.10",
     "pydantic>=2.12.1",
     "python-dotenv>=1.1.1",
+    "redis>=5.2.0",
 ]
 
 [dependency-groups]
