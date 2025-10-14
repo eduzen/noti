@@ -217,7 +217,7 @@ LOGGING = {
         "celery": {
             "handlers": ["console"],
             "level": "INFO",
-            "propagate": False",
+            "propagate": False,
         },
         "notifications": {
             "handlers": ["console"],

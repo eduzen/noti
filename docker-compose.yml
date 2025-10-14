@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     container_name: noti_postgres
     environment:
       POSTGRES_DB: noti
@@ -31,6 +31,71 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  web:
+    build: .
+    container_name: noti_web
+    command: uv run python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=True
+      - DB_ENGINE=postgresql
+      - DB_NAME=noti
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - CELERY_BROKER_URL=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery_worker:
+    build: .
+    container_name: noti_celery_worker
+    command: uv run celery -A core worker -l info
+    volumes:
+      - .:/app
+    environment:
+      - DEBUG=True
+      - DB_ENGINE=postgresql
+      - DB_NAME=noti
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - CELERY_BROKER_URL=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery_beat:
+    build: .
+    container_name: noti_celery_beat
+    command: uv run celery -A core beat -l info
+    volumes:
+      - .:/app
+    environment:
+      - DEBUG=True
+      - DB_ENGINE=postgresql
+      - DB_NAME=noti
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - CELERY_BROKER_URL=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
 volumes:
   postgres_data:

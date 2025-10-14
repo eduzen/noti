@@ -1,0 +1,23 @@
+# CODEOWNERS file
+# These owners will be the default owners for everything in the repo
+# They will be requested for review when someone opens a pull request
+
+# Global owners
+* @eduzen
+
+# Django settings and core configuration
+core/core/settings.py @eduzen
+core/core/celery.py @eduzen
+docker-compose.yml @eduzen
+Dockerfile @eduzen
+
+# Models and database migrations
+core/notifications/models.py @eduzen
+core/notifications/migrations/ @eduzen
+
+# Celery tasks (critical for notification delivery)
+core/notifications/tasks.py @eduzen
+
+# GitHub Actions and CI/CD
+.github/workflows/ @eduzen
+.github/dependabot.yml @eduzen

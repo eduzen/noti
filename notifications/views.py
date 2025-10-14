@@ -96,10 +96,10 @@ class PushNotificationViewSet(
         # Get or create device
         device, _ = Device.objects.get_or_create(
             device_token=notification.device_token,
-            defaults={"platform": "ios"},
+            defaults={"platform": Device.Platform.IOS},
         )
         notification.device = device
-        notification.status = "queued"
+        notification.status = PushNotification.Status.QUEUED
         notification.save()
 
         # Queue notification for sending
@@ -134,14 +134,14 @@ class PushNotificationViewSet(
             # Get or create device
             device, _ = Device.objects.get_or_create(
                 device_token=device_token,
-                defaults={"platform": "ios"},
+                defaults={"platform": Device.Platform.IOS},
             )
 
             # Create notification
             notification = PushNotification.objects.create(
                 device=device,
                 device_token=device_token,
-                status="queued",
+                status=PushNotification.Status.QUEUED,
                 **notification_data,
             )
             notifications.append(notification)
@@ -170,12 +170,14 @@ class PushNotificationViewSet(
 
         stats = PushNotification.objects.aggregate(
             total=Count("id"),
-            pending=Count("id", filter=models.Q(status="pending")),
-            queued=Count("id", filter=models.Q(status="queued")),
-            sending=Count("id", filter=models.Q(status="sending")),
-            sent=Count("id", filter=models.Q(status="sent")),
-            failed=Count("id", filter=models.Q(status="failed")),
-            invalid_token=Count("id", filter=models.Q(status="invalid_token")),
+            pending=Count("id", filter=models.Q(status=PushNotification.Status.PENDING)),
+            queued=Count("id", filter=models.Q(status=PushNotification.Status.QUEUED)),
+            sending=Count("id", filter=models.Q(status=PushNotification.Status.SENDING)),
+            sent=Count("id", filter=models.Q(status=PushNotification.Status.SENT)),
+            failed=Count("id", filter=models.Q(status=PushNotification.Status.FAILED)),
+            invalid_token=Count(
+                "id", filter=models.Q(status=PushNotification.Status.INVALID_TOKEN)
+            ),
         )
 
         return Response(stats)

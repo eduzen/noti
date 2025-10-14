@@ -5,13 +5,12 @@ from django.utils import timezone
 class Device(models.Model):
     """iOS device registration and tracking"""
 
-    PLATFORM_CHOICES = [
-        ("ios", "iOS"),
-        ("android", "Android"),  # Future-proofing
-    ]
+    class Platform(models.TextChoices):
+        IOS = "ios", "iOS"
+        ANDROID = "android", "Android"  # Future-proofing
 
     device_token = models.CharField(max_length=255, unique=True, db_index=True)
-    platform = models.CharField(max_length=10, choices=PLATFORM_CHOICES, default="ios")
+    platform = models.CharField(max_length=10, choices=Platform.choices, default=Platform.IOS)
     is_active = models.BooleanField(default=True, db_index=True)
 
     # Optional: Link to user if you have authentication
@@ -36,19 +35,17 @@ class Device(models.Model):
 class PushNotification(models.Model):
     """Individual push notification record for tracking and reliability"""
 
-    STATUS_CHOICES = [
-        ("pending", "Pending"),
-        ("queued", "Queued"),
-        ("sending", "Sending"),
-        ("sent", "Sent"),
-        ("failed", "Failed"),
-        ("invalid_token", "Invalid Token"),
-    ]
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        QUEUED = "queued", "Queued"
+        SENDING = "sending", "Sending"
+        SENT = "sent", "Sent"
+        FAILED = "failed", "Failed"
+        INVALID_TOKEN = "invalid_token", "Invalid Token"
 
-    PRIORITY_CHOICES = [
-        (5, "Normal"),
-        (10, "High"),
-    ]
+    class Priority(models.IntegerChoices):
+        NORMAL = 5, "Normal"
+        HIGH = 10, "High"
 
     # Target
     device = models.ForeignKey(
@@ -68,7 +65,7 @@ class PushNotification(models.Model):
     data = models.JSONField(default=dict, blank=True)
 
     # Delivery settings
-    priority = models.IntegerField(choices=PRIORITY_CHOICES, default=5)
+    priority = models.IntegerField(choices=Priority.choices, default=Priority.NORMAL)
     expiration = models.DateTimeField(
         null=True,
         blank=True,
@@ -76,7 +73,9 @@ class PushNotification(models.Model):
     )
 
     # Status tracking
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending", db_index=True)
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True
+    )
     retry_count = models.IntegerField(default=0)
     max_retries = models.IntegerField(default=3)
     error_message = models.TextField(null=True, blank=True)
@@ -103,7 +102,7 @@ class PushNotification(models.Model):
 
     def mark_as_sent(self, apns_id=None):
         """Mark notification as successfully sent"""
-        self.status = "sent"
+        self.status = self.Status.SENT
         self.sent_at = timezone.now()
         if apns_id:
             self.apns_id = apns_id
@@ -111,19 +110,21 @@ class PushNotification(models.Model):
 
     def mark_as_failed(self, error_message):
         """Mark notification as failed"""
-        self.status = "failed"
+        self.status = self.Status.FAILED
         self.error_message = error_message
         self.save(update_fields=["status", "error_message"])
 
     def increment_retry(self):
         """Increment retry counter"""
         self.retry_count += 1
-        self.status = "pending" if self.retry_count < self.max_retries else "failed"
+        self.status = (
+            self.Status.PENDING if self.retry_count < self.max_retries else self.Status.FAILED
+        )
         self.save(update_fields=["retry_count", "status"])
 
     def mark_token_invalid(self):
         """Mark token as invalid and deactivate device"""
-        self.status = "invalid_token"
+        self.status = self.Status.INVALID_TOKEN
         self.save(update_fields=["status"])
         if self.device:
             self.device.is_active = False

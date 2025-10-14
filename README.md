@@ -53,66 +53,109 @@ noti/
 
 ## Quick Start
 
-### 1. Prerequisites
+### Option 1: Docker (Recommended)
 
-- Python 3.12+
-- Docker and Docker Compose (for PostgreSQL and Redis)
+**Prerequisites:**
+- Docker and Docker Compose
+- Just (optional, for convenient commands)
+
+**Setup with Docker:**
+
+```bash
+# Build and start all services (Django, Celery, PostgreSQL, Redis)
+docker-compose up -d
+
+# Or use just commands
+just build  # Build images
+just up     # Start all services
+
+# Run migrations
+docker-compose exec web uv run python manage.py migrate
+# Or: just docker-migrate
+
+# Create superuser
+docker-compose exec web uv run python manage.py createsuperuser
+# Or: just docker-createsuperuser
+
+# View logs
+docker-compose logs -f
+# Or: just logs
+
+# View specific service logs
+just logs web
+just logs celery_worker
+```
+
+**That's it!** Your entire stack is now running:
+- Django API: http://localhost:8000
+- API Docs: http://localhost:8000/api/docs/
+- Admin: http://localhost:8000/admin/
+- PostgreSQL: localhost:5432
+- Redis: localhost:6379
+
+**Useful Docker commands:**
+```bash
+just ps              # View running services
+just down            # Stop all services
+just restart web     # Restart a service
+just bash            # Access Django container
+just docker-shell    # Django shell
+```
+
+### Option 2: Local Development (Without Docker)
+
+**Prerequisites:**
+- Python 3.14+
+- Docker Compose (for PostgreSQL and Redis only)
 - uv (Python package manager)
 
-### 2. Install Dependencies
+**Setup:**
 
 ```bash
-# Install uv if you haven't
+# Install uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Install project dependencies
+# Install dependencies
 uv sync
-```
+# Or: just install
 
-### 3. Start Infrastructure
+# Start only infrastructure (PostgreSQL + Redis)
+docker-compose up -d postgres redis
+# Or: just infra
 
-```bash
-# Start PostgreSQL and Redis
-docker-compose up -d
-```
-
-### 4. Configure Environment
-
-```bash
-# Copy environment template
+# Configure environment (optional for local dev with SQLite)
 cp .env.example core/.env
 
-# Edit core/.env and add your APNs credentials
-```
-
-### 5. Run Migrations
-
-```bash
+# Run migrations
 cd core
 uv run python manage.py migrate
+# Or: just migrate
+
+# Create superuser
 uv run python manage.py createsuperuser
 ```
 
-### 6. Start Services
+**Start services (3 separate terminals):**
 
-You need 3 terminal windows:
-
-**Terminal 1 - Django API:**
+Terminal 1 - Django:
 ```bash
 cd core
 uv run python manage.py runserver
+# Or: just runserver
 ```
 
-**Terminal 2 - Celery Worker:**
+Terminal 2 - Celery Worker:
 ```bash
 cd core
 uv run celery -A core worker -l info
+# Or: just worker
 ```
 
-**Terminal 3 - Celery Beat (optional - for scheduled tasks):**
+Terminal 3 - Celery Beat (optional):
 ```bash
 cd core
 uv run celery -A core beat -l info
+# Or: just beat
 ```
 
 ## API Endpoints

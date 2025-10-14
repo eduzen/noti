@@ -96,19 +96,19 @@ class PushNotificationAdmin(admin.ModelAdmin):
     def status_badge(self, obj):
         """Display status as a colored badge"""
         colors = {
-            "pending": "#FFA500",
-            "queued": "#1E90FF",
-            "sending": "#00CED1",
-            "sent": "#32CD32",
-            "failed": "#DC143C",
-            "invalid_token": "#8B0000",
+            PushNotification.Status.PENDING: "#FFA500",
+            PushNotification.Status.QUEUED: "#1E90FF",
+            PushNotification.Status.SENDING: "#00CED1",
+            PushNotification.Status.SENT: "#32CD32",
+            PushNotification.Status.FAILED: "#DC143C",
+            PushNotification.Status.INVALID_TOKEN: "#8B0000",
         }
         color = colors.get(obj.status, "#808080")
         return format_html(
             '<span style="background-color: {}; color: white; padding: 3px 10px; '
             'border-radius: 3px;">{}</span>',
             color,
-            obj.status.upper(),
+            obj.get_status_display(),
         )
 
     status_badge.short_description = "Status"
