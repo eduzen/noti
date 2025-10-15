@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "celery>=5.5.3",
+    "dj-database-url>=3.0.1",
     "django>=5.2.7",
     "django-celery-results>=2.6.0",
     "django-filter>=24.4",
@@ -17,10 +18,12 @@ dependencies = [
     "pydantic>=2.12.1",
     "python-dotenv>=1.1.1",
     "redis>=5.2.0",
+    "whitenoise>=6.11.0",
 ]
 
 [dependency-groups]
 dev = [
+    "django-browser-reload>=1.17.0",
     "pre-commit>=4.3.0",
     "pytest>=8.4.2",
 ]
