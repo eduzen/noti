@@ -5,6 +5,7 @@ Django settings for core project.
 import os
 from pathlib import Path
 
+import dj_database_url
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -14,12 +15,17 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-n%xs^6+di2^j4&oncb7_pfrr6fg9ga!q(0!l_=%8)d&$rtnscq")
+SECRET_KEY = os.getenv(
+    "SECRET_KEY", "django-insecure-n%xs^6+di2^j4&oncb7_pfrr6fg9ga!q(0!l_=%8)d&$rtnscq"
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "True") == "True"
 
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+
+# Custom User Model
+AUTH_USER_MODEL = "accounts.User"
 
 
 # Application definition
@@ -36,6 +42,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "django_celery_results",
     # Local apps
+    "accounts",
     "notifications",
 ]
 
@@ -80,16 +87,21 @@ WSGI_APPLICATION = "core.wsgi.application"
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+# Django 5.1+ native connection pooling with psycopg 3
 
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("DB_NAME", "noti"),
-        "USER": os.getenv("DB_USER", "postgres"),
-        "PASSWORD": os.getenv("DB_PASSWORD", "postgres"),
-        "HOST": os.getenv("DB_HOST", "localhost"),
-        "PORT": os.getenv("DB_PORT", "5432"),
-        "CONN_MAX_AGE": 60,
+    "default": dj_database_url.config(
+        conn_health_checks=True,
+    )
+}
+
+# Configure Django 5.1+ native connection pooling for PostgreSQL
+# Note: conn_max_age is not compatible with connection pooling
+DATABASES["default"]["OPTIONS"] = {
+    "pool": {
+        "min_size": 2,  # Minimum connections in pool
+        "max_size": 10,  # Maximum connections in pool
+        "timeout": 30,  # Connection timeout in seconds
     }
 }
 

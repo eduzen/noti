@@ -118,7 +118,9 @@ class BulkNotificationSerializer(serializers.Serializer):
     def validate_device_tokens(self, value):
         """Validate device tokens"""
         if len(value) > 1000:
-            raise serializers.ValidationError("Cannot send to more than 1000 devices at once")
+            raise serializers.ValidationError(
+                "Cannot send to more than 1000 devices at once"
+            )
         return value
 
     def validate_data(self, value):

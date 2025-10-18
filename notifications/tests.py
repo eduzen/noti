@@ -60,7 +60,9 @@ class PushNotificationAPITests(APITestCase):
             "data": {"foo": "bar"},
         }
 
-        response = self.client.post(reverse("notification-list"), payload, format="json")
+        response = self.client.post(
+            reverse("notification-list"), payload, format="json"
+        )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         notification = PushNotification.objects.get()
@@ -78,7 +80,9 @@ class PushNotificationAPITests(APITestCase):
             "data": {"batch": True},
         }
 
-        response = self.client.post(reverse("notification-bulk"), payload, format="json")
+        response = self.client.post(
+            reverse("notification-bulk"), payload, format="json"
+        )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(PushNotification.objects.count(), 2)
@@ -90,7 +94,9 @@ class PushNotificationAPITests(APITestCase):
         )
 
     def test_stats_endpoint_returns_counts(self):
-        device = Device.objects.create(device_token="device-stats-12345", platform="ios")
+        device = Device.objects.create(
+            device_token="device-stats-12345", platform="ios"
+        )
         PushNotification.objects.create(
             device=device,
             device_token=device.device_token,
@@ -150,5 +156,7 @@ class PushNotificationModelTests(TestCase):
 
         self.notification.refresh_from_db()
         self.device.refresh_from_db()
-        self.assertEqual(self.notification.status, PushNotification.Status.INVALID_TOKEN)
+        self.assertEqual(
+            self.notification.status, PushNotification.Status.INVALID_TOKEN
+        )
         self.assertFalse(self.device.is_active)

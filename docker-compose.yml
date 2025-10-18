@@ -1,13 +1,8 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:18-alpine
     container_name: noti_postgres
-    environment:
-      POSTGRES_DB: noti
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+    env_file: .env
     ports:
       - "5432:5432"
     volumes:
@@ -40,15 +35,7 @@ services:
       - .:/app
     ports:
       - "8000:8000"
-    environment:
-      - DEBUG=True
-      - DB_ENGINE=postgresql
-      - DB_NAME=noti
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - CELERY_BROKER_URL=redis://redis:6379/0
+    env_file: .env
     depends_on:
       postgres:
         condition: service_healthy
@@ -61,15 +48,7 @@ services:
     command: uv run celery -A core worker -l info
     volumes:
       - .:/app
-    environment:
-      - DEBUG=True
-      - DB_ENGINE=postgresql
-      - DB_NAME=noti
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - CELERY_BROKER_URL=redis://redis:6379/0
+    env_file: .env
     depends_on:
       postgres:
         condition: service_healthy
@@ -82,15 +61,7 @@ services:
     command: uv run celery -A core beat -l info
     volumes:
       - .:/app
-    environment:
-      - DEBUG=True
-      - DB_ENGINE=postgresql
-      - DB_NAME=noti
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - CELERY_BROKER_URL=redis://redis:6379/0
+    env_file: .env
     depends_on:
       postgres:
         condition: service_healthy

@@ -2,23 +2,63 @@ from django.db import models
 from django.utils import timezone
 
 
-class Device(models.Model):
+class TimeStampedModel(models.Model):
+    """Abstract base model with created_at and updated_at fields"""
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+
+
+class DeviceOwner(TimeStampedModel):
+    """iOS app users who own devices - not Django login users"""
+
+    # External identifier from your iOS app
+    external_id = models.CharField(max_length=255, unique=True, db_index=True)
+
+    # Optional personal information
+    email = models.EmailField(null=True, blank=True, db_index=True)
+    name = models.CharField(max_length=255, blank=True)
+
+    # Optional metadata
+    is_active = models.BooleanField(default=True, db_index=True)
+
+    class Meta:
+        db_table = "device_owners"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["external_id", "is_active"]),
+        ]
+
+    def __str__(self):
+        return f"{self.name or self.email or self.external_id}"
+
+
+class Device(TimeStampedModel):
     """iOS device registration and tracking"""
 
     class Platform(models.TextChoices):
         IOS = "ios", "iOS"
         ANDROID = "android", "Android"  # Future-proofing
 
+    # Owner of the device
+    owner = models.ForeignKey(
+        DeviceOwner,
+        on_delete=models.CASCADE,
+        related_name="devices",
+        null=True,
+        blank=True,
+    )
+
     device_token = models.CharField(max_length=255, unique=True, db_index=True)
-    platform = models.CharField(max_length=10, choices=Platform.choices, default=Platform.IOS)
+    platform = models.CharField(
+        max_length=10, choices=Platform.choices, default=Platform.IOS
+    )
     is_active = models.BooleanField(default=True, db_index=True)
 
-    # Optional: Link to user if you have authentication
-    # user = models.ForeignKey('auth.User', on_delete=models.CASCADE, null=True, blank=True)
-
     # Metadata
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
     last_notification_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
@@ -32,7 +72,7 @@ class Device(models.Model):
         return f"{self.platform} - {self.device_token[:20]}..."
 
 
-class PushNotification(models.Model):
+class PushNotification(TimeStampedModel):
     """Individual push notification record for tracking and reliability"""
 
     class Status(models.TextChoices):
@@ -49,7 +89,11 @@ class PushNotification(models.Model):
 
     # Target
     device = models.ForeignKey(
-        Device, on_delete=models.CASCADE, related_name="notifications", null=True, blank=True
+        Device,
+        on_delete=models.CASCADE,
+        related_name="notifications",
+        null=True,
+        blank=True,
     )
     device_token = models.CharField(max_length=255, db_index=True)
 
@@ -81,7 +125,6 @@ class PushNotification(models.Model):
     error_message = models.TextField(null=True, blank=True)
 
     # Timestamps
-    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     scheduled_at = models.DateTimeField(default=timezone.now, db_index=True)
     sent_at = models.DateTimeField(null=True, blank=True)
 
@@ -118,7 +161,9 @@ class PushNotification(models.Model):
         """Increment retry counter"""
         self.retry_count += 1
         self.status = (
-            self.Status.PENDING if self.retry_count < self.max_retries else self.Status.FAILED
+            self.Status.PENDING
+            if self.retry_count < self.max_retries
+            else self.Status.FAILED
         )
         self.save(update_fields=["retry_count", "status"])
 

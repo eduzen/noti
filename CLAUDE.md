@@ -25,9 +25,10 @@ Initially FastAPI was considered for better async performance, but **Django was 
 ## Technology Stack
 
 - **Django 5.2** + **Django REST Framework** - API layer
+- **PostgreSQL** with **psycopg[binary,pool] 3.2+** - Native connection pooling (Django 5.1+)
 - **Celery 5.5** - Async task processing
 - **Redis** - Message broker
-- **PostgreSQL** - Primary database (SQLite supported for dev)
+- **Custom User Model** - Email-based authentication (no username)
 - **Python 3.14** - Latest Python version
 - **Docker Compose** - Development environment
 - **uv** - Package manager
@@ -44,42 +45,103 @@ Django Ninja was discussed (FastAPI-like syntax with Django) but **DRF was chose
 
 ```
 noti/
-├── core/                          # Django project root
-│   ├── core/                      # Settings module
-│   │   ├── settings.py           # Environment-based configuration
-│   │   ├── celery.py             # Celery app initialization
-│   │   ├── urls.py               # Main URL routing
-│   │   └── __init__.py           # Celery app import
-│   ├── notifications/             # Main app
-│   │   ├── models.py             # Device + PushNotification models
-│   │   ├── serializers.py        # DRF serializers
-│   │   ├── views.py              # API viewsets
-│   │   ├── tasks.py              # Celery tasks for APNs
-│   │   ├── admin.py              # Django admin with colored badges
-│   │   └── urls.py               # App URL routing
-│   └── manage.py
+├── accounts/                      # Authentication app
+│   ├── models.py                 # Custom User + UserProfile models
+│   ├── admin.py                  # User admin with inline profile
+│   └── migrations/
+├── notifications/                 # Main app
+│   ├── models.py                 # DeviceOwner, Device, PushNotification
+│   ├── serializers.py            # DRF serializers
+│   ├── views.py                  # API viewsets
+│   ├── tasks.py                  # Celery tasks for APNs
+│   ├── admin.py                  # Django admin with colored badges
+│   ├── urls.py                   # App URL routing
+│   └── migrations/
+├── core/                          # Settings module
+│   ├── settings.py               # Environment-based configuration
+│   ├── celery.py                 # Celery app initialization
+│   ├── urls.py                   # Main URL routing
+│   └── __init__.py               # Celery app import
+├── manage.py
 ├── Dockerfile                     # Python 3.14-slim based
 ├── docker-compose.yml             # 5 services (postgres, redis, web, celery_worker, celery_beat)
 ├── .dockerignore
-├── pyproject.toml                 # uv dependency management
+├── pyproject.toml                 # uv dependency management (psycopg[binary,pool])
 ├── justfile                       # Convenient commands
 └── .env.example                   # Environment template
 ```
 
 ## Core Models
 
-### Device Model (`notifications/models.py:5`)
+### TimeStampedModel (`notifications/models.py:5`)
+
+**Abstract base model** for consistent timestamps:
+- `created_at` - Auto-set on creation (auto_now_add=True)
+- `updated_at` - Auto-updated on save (auto_now=True)
+
+**Key Decision**: DRY principle for timestamps
+- All models inherit from TimeStampedModel
+- Uniform timestamp behavior across the system
+- Easy to add common fields to all models in the future
+
+### User Model (`accounts/models.py:32`)
+
+**Custom User model** with email-based authentication (NO username):
+- `email` - Unique email field (used as USERNAME_FIELD)
+- `password` - Hashed password (from AbstractBaseUser)
+- `is_staff`, `is_active`, `is_superuser` - Permission flags
+- `created_at`, `updated_at` - Timestamps
+
+**Key Decision**: Minimal authentication-only user model
+- Personal information stored in separate UserProfile (one-to-one)
+- Separation of concerns: auth vs. profile data
+- Cleaner security model
+
+**Custom UserManager**:
+- `create_user(email, password)` - Create regular user
+- `create_superuser(email, password)` - Create admin user
+
+### UserProfile Model (`accounts/models.py:61`)
+
+Personal information **separate from authentication**:
+- `user` - OneToOneField to User (accessed via `user.profile`)
+- `first_name`, `last_name` - Personal names
+- `phone` - Contact information
+- `created_at`, `updated_at` - Timestamps
+
+**Key Decision**: One-to-one pattern for personal data
+- Keeps User model minimal and focused on authentication
+- Personal data separate from security-critical auth data
+
+### DeviceOwner Model (`notifications/models.py:15`)
+
+**iOS app users** who own devices (NOT Django login users):
+- `external_id` - Unique identifier from your iOS app (indexed)
+- `email`, `name` - Optional personal information
+- `is_active` - Whether owner is active
+- `created_at`, `updated_at` - Timestamps (from TimeStampedModel)
+
+**Key Decision**: Separate from User model
+- DeviceOwner = iOS app users (cannot log into Django)
+- User = Django admin/staff users (can log into Django)
+- Clear separation of concerns
+- DeviceOwner optimized for 200k+ notifications/day
+
+### Device Model (`notifications/models.py:39`)
 
 Tracks registered iOS devices:
+- `owner` - ForeignKey to DeviceOwner (nullable for backward compatibility)
 - `device_token` - Unique device identifier (indexed)
 - `platform` - ios/android (future-proof)
 - `is_active` - Whether device can receive notifications
 - `last_notification_at` - Last successful notification timestamp
+- `created_at`, `updated_at` - Timestamps (from TimeStampedModel)
 
-**Key Decision**: Device is separate from PushNotification to enable:
-- Device status tracking (valid/invalid tokens)
+**Key Decision**: Device links to DeviceOwner (not User)
+- Device ownership tracking
+- Device-level analytics per owner
+- Multi-device support per owner
 - Future multi-platform support
-- Device-level analytics
 
 ### PushNotification Model (`notifications/models.py:36`)
 
@@ -188,15 +250,25 @@ else:
 
 ### Environment Variables (`.env.example`)
 
-**Database** (switchable):
+**Database** (using dj-database-url):
 ```bash
-DB_ENGINE=sqlite           # Dev: SQLite
-DB_ENGINE=postgresql       # Prod: PostgreSQL
+# For Docker/production (PostgreSQL):
+DATABASE_URL=postgresql://postgres:postgres@postgres:5432/noti
+# For local development (PostgreSQL):
+# DATABASE_URL=postgresql://postgres:postgres@localhost:5432/noti
+```
+
+**PostgreSQL Container** (for docker-compose):
+```bash
+POSTGRES_DB=noti
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
 ```
 
 **Celery**:
 ```bash
-CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_BROKER_URL=redis://redis:6379/0  # Docker
+# CELERY_BROKER_URL=redis://localhost:6379/0  # Local
 ```
 
 **APNs** (required for production):
@@ -211,9 +283,28 @@ APNS_USE_SANDBOX=True      # False for production
 
 **Environment-based configuration**:
 - Uses `python-dotenv` for `.env` file loading
-- Supports both SQLite (dev) and PostgreSQL (prod)
+- Uses `dj-database-url` for DATABASE_URL parsing
+- PostgreSQL with Django 5.1+ native connection pooling (psycopg[pool])
 - All sensitive values from environment variables
-- Sane defaults for development
+- Custom User model: `AUTH_USER_MODEL = "accounts.User"`
+
+**Database Configuration**:
+```python
+DATABASES = {
+    "default": dj_database_url.config(
+        conn_health_checks=True,
+    )
+}
+
+# Django 5.1+ native connection pooling
+DATABASES["default"]["OPTIONS"] = {
+    "pool": {
+        "min_size": 2,  # Minimum connections
+        "max_size": 10,  # Maximum connections
+        "timeout": 30,  # Connection timeout
+    }
+}
+```
 
 **DRF Configuration**:
 - JSON-only (no browsable API in prod)
@@ -287,14 +378,28 @@ just fmt            # Ruff formatting
 
 ## Admin Interface
 
-### Custom Admin (`notifications/admin.py`)
+### Custom Admin
 
-**Device Admin**:
+**User Admin** (`accounts/admin.py`):
+- Email-based login (no username)
+- Inline UserProfile editing
+- Permission management
+- Read-only timestamps
+
+**DeviceOwner Admin** (`notifications/admin.py`):
+- Shows device count per owner
+- Searchable by external_id, name, email
+- Filterable by active status
+- Read-only timestamps
+
+**Device Admin** (`notifications/admin.py`):
+- Shows owner information
 - Shortened token display (first 20 chars)
 - Filterable by platform, active status
-- Searchable by token
+- Searchable by token and owner details
+- Autocomplete for owner selection
 
-**PushNotification Admin**:
+**PushNotification Admin** (`notifications/admin.py`):
 - **Colored status badges** (green=sent, red=failed, etc.)
 - Filterable by status, priority, dates
 - Searchable by title, body, token
@@ -334,9 +439,12 @@ When needed (>1M/day):
 ### Performance Optimization Tips
 
 **Already implemented**:
-- Database indexes on: `device_token`, `status`, `created_at`
+- Database indexes on: `device_token`, `status`, `created_at`, `external_id`
 - Celery task routing
-- Connection pooling (`CONN_MAX_AGE=60`)
+- Django 5.1+ native connection pooling (psycopg[pool])
+  - Min 2, Max 10 connections
+  - Health checks enabled
+  - 30-second timeout
 
 **Future optimizations**:
 - Bulk insert for bulk notifications (currently one-by-one)
@@ -447,7 +555,8 @@ class NotificationAPITest(TestCase):
 - [ ] Set `DEBUG=False`
 - [ ] Generate new `SECRET_KEY`
 - [ ] Set `ALLOWED_HOSTS`
-- [ ] Use `DB_ENGINE=postgresql`
+- [ ] Set production `DATABASE_URL` (PostgreSQL)
+- [ ] Create superuser account (`python manage.py createsuperuser`)
 - [ ] Implement real APNs client in `tasks.py:150`
 - [ ] Set `APNS_USE_SANDBOX=False`
 - [ ] Configure SSL/TLS certificates
@@ -518,15 +627,18 @@ class NotificationAPITest(TestCase):
 
 | File | Purpose | Key Notes |
 |------|---------|-----------|
-| `core/core/settings.py` | Django config | Environment-based, supports SQLite/PostgreSQL |
-| `core/core/celery.py` | Celery app | Auto-discovers tasks |
-| `core/notifications/models.py` | Data models | Device + PushNotification with helper methods |
-| `core/notifications/serializers.py` | DRF serializers | Separate for create/read |
-| `core/notifications/views.py` | API endpoints | Bulk endpoint with 1000 limit |
-| `core/notifications/tasks.py` | Celery tasks | APNs sending with retry logic |
-| `core/notifications/admin.py` | Django admin | Colored badges, filtering |
-| `docker-compose.yml` | Docker services | 5 services, health checks |
+| `core/settings.py` | Django config | DATABASE_URL, psycopg[pool], AUTH_USER_MODEL |
+| `core/celery.py` | Celery app | Auto-discovers tasks |
+| `accounts/models.py` | Auth models | Custom User (email login) + UserProfile |
+| `accounts/admin.py` | User admin | Inline profile editing |
+| `notifications/models.py` | Data models | DeviceOwner, Device, PushNotification, TimeStampedModel |
+| `notifications/serializers.py` | DRF serializers | Separate for create/read |
+| `notifications/views.py` | API endpoints | Bulk endpoint with 1000 limit |
+| `notifications/tasks.py` | Celery tasks | APNs sending with retry logic |
+| `notifications/admin.py` | Django admin | Colored badges, filtering, device owner tracking |
+| `docker-compose.yml` | Docker services | 5 services, env_file, health checks |
 | `Dockerfile` | Container image | Python 3.14, uv, non-root user |
+| `.env.example` | Environment template | DATABASE_URL, connection pooling config |
 | `justfile` | Commands | Both Docker and local dev |
 
 ## Philosophy

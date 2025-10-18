@@ -105,7 +105,9 @@ class PushNotificationViewSet(
         # Queue notification for sending
         send_push_notification.delay(notification.id)
 
-        logger.info(f"Queued notification {notification.id} for device {device.device_token[:20]}...")
+        logger.info(
+            f"Queued notification {notification.id} for device {device.device_token[:20]}..."
+        )
 
     @action(detail=False, methods=["post"])
     def bulk(self, request):
@@ -170,9 +172,13 @@ class PushNotificationViewSet(
 
         stats = PushNotification.objects.aggregate(
             total=Count("id"),
-            pending=Count("id", filter=models.Q(status=PushNotification.Status.PENDING)),
+            pending=Count(
+                "id", filter=models.Q(status=PushNotification.Status.PENDING)
+            ),
             queued=Count("id", filter=models.Q(status=PushNotification.Status.QUEUED)),
-            sending=Count("id", filter=models.Q(status=PushNotification.Status.SENDING)),
+            sending=Count(
+                "id", filter=models.Q(status=PushNotification.Status.SENDING)
+            ),
             sent=Count("id", filter=models.Q(status=PushNotification.Status.SENT)),
             failed=Count("id", filter=models.Q(status=PushNotification.Status.FAILED)),
             invalid_token=Count(

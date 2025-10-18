@@ -2,6 +2,10 @@
 
 docker-compose := "docker compose"
 
+
+format:
+    uv run pre-commit run --all-files
+
 run:
     just runserver
 
@@ -26,3 +30,6 @@ makemigrations:
 
 build:
     {{docker-compose}} build
+
+test *args:
+    {{docker-compose}} run --rm web pytest {{args}}

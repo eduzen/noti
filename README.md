@@ -23,9 +23,10 @@ External Services → Django API → Redis Queue → Celery Workers → APNs
 ## Tech Stack
 
 - **Django 5.2** + **Django REST Framework**
+- **PostgreSQL** with **psycopg 3** - Native connection pooling (Django 5.1+)
 - **Celery 5.5** - Async task processing
 - **Redis** - Message broker and cache
-- **PostgreSQL** - Primary database
+- **Custom User Model** - Email-based authentication
 - **httpx** - HTTP/2 client for APNs
 - **Docker Compose** - Local development
 
@@ -33,21 +34,23 @@ External Services → Django API → Redis Queue → Celery Workers → APNs
 
 ```
 noti/
-├── core/                    # Main Django project
-│   ├── core/               # Settings and configuration
-│   │   ├── settings.py     # Django settings
-│   │   ├── celery.py       # Celery configuration
-│   │   └── urls.py         # URL routing
-│   ├── notifications/       # Notifications app
-│   │   ├── models.py       # Device and PushNotification models
-│   │   ├── serializers.py  # DRF serializers
-│   │   ├── views.py        # API viewsets
-│   │   ├── tasks.py        # Celery tasks for sending notifications
-│   │   ├── admin.py        # Django admin configuration
-│   │   └── urls.py         # App URL routing
-│   └── manage.py
-├── docker-compose.yml       # PostgreSQL + Redis
-├── pyproject.toml          # Dependencies
+├── accounts/                # Authentication app
+│   ├── models.py           # Custom User + UserProfile models
+│   └── admin.py            # User admin with inline profile
+├── notifications/           # Notifications app
+│   ├── models.py           # DeviceOwner, Device, PushNotification
+│   ├── serializers.py      # DRF serializers
+│   ├── views.py            # API viewsets
+│   ├── tasks.py            # Celery tasks for sending notifications
+│   ├── admin.py            # Django admin configuration
+│   └── urls.py             # App URL routing
+├── core/                    # Django project settings
+│   ├── settings.py         # Django settings
+│   ├── celery.py           # Celery configuration
+│   └── urls.py             # URL routing
+├── manage.py
+├── docker-compose.yml       # 5 services (PostgreSQL, Redis, Web, Celery Worker, Celery Beat)
+├── pyproject.toml          # Dependencies (uv)
 └── .env.example            # Environment variables template
 ```
 
@@ -230,9 +233,30 @@ GET /api/notifications/stats/
 
 ## Database Models
 
+### User (Custom Auth Model)
+
+Email-based authentication for Django admin/staff:
+- `email` - Unique email (used as username)
+- `password` - Hashed password
+- `is_staff`, `is_active`, `is_superuser` - Permissions
+- `created_at`, `updated_at` - Timestamps
+
+### UserProfile
+
+Personal information (one-to-one with User):
+- `first_name`, `last_name`, `phone` - Personal details
+
+### DeviceOwner
+
+iOS app users who own devices (NOT Django login users):
+- `external_id` - Unique identifier from your iOS app
+- `email`, `name` - Optional personal information
+- `is_active` - Whether owner is active
+
 ### Device
 
-Tracks registered iOS devices:
+Registered iOS/Android devices:
+- `owner` - ForeignKey to DeviceOwner
 - `device_token` - Unique device identifier
 - `platform` - ios/android (future-proof)
 - `is_active` - Whether device can receive notifications
@@ -256,13 +280,20 @@ See `.env.example` for all available options. Key variables:
 # Django
 SECRET_KEY=your-secret-key
 DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1
 
-# Database (use sqlite for dev, postgresql for prod)
-DB_ENGINE=sqlite
-# DB_ENGINE=postgresql
+# Database - PostgreSQL with Django 5.1+ connection pooling (psycopg 3)
+DATABASE_URL=postgresql://postgres:postgres@postgres:5432/noti
+# For local development:
+# DATABASE_URL=postgresql://postgres:postgres@localhost:5432/noti
+
+# PostgreSQL Container (for docker-compose)
+POSTGRES_DB=noti
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
 
 # Celery
-CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_BROKER_URL=redis://redis:6379/0
 
 # APNs
 APNS_KEY_ID=your-key-id
@@ -318,9 +349,9 @@ uv run python manage.py migrate
    - Configure `ALLOWED_HOSTS`
 
 2. **Database**
-   - Use PostgreSQL (`DB_ENGINE=postgresql`)
-   - Configure connection pooling
-   - Set up backups
+   - Set production `DATABASE_URL` (PostgreSQL)
+   - Django 5.1+ native connection pooling already configured (psycopg[pool])
+   - Set up backups and monitoring
 
 3. **Redis**
    - Use persistent Redis instance
@@ -343,9 +374,9 @@ uv run python manage.py migrate
 
 ### Scaling
 
-- **Horizontal**: Add more Celery workers
+- **Horizontal**: Add more Celery workers (`docker-compose up -d --scale celery_worker=5`)
 - **Vertical**: Increase worker concurrency
-- **Database**: Add read replicas, connection pooling
+- **Database**: Add read replicas (connection pooling already configured)
 - **Redis**: Use Redis Cluster for > 1M notifications/day
 
 ## Monitoring

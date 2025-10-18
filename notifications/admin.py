@@ -5,22 +5,65 @@ Django admin configuration for notifications app.
 from django.contrib import admin
 from django.utils.html import format_html
 
-from .models import Device, PushNotification
+from .models import Device, DeviceOwner, PushNotification
+
+
+@admin.register(DeviceOwner)
+class DeviceOwnerAdmin(admin.ModelAdmin):
+    """Admin for DeviceOwner model"""
+
+    list_display = [
+        "id",
+        "external_id",
+        "name",
+        "email",
+        "is_active",
+        "device_count",
+        "created_at",
+    ]
+    list_filter = ["is_active", "created_at"]
+    search_fields = ["external_id", "name", "email"]
+    readonly_fields = ["created_at", "updated_at"]
+    ordering = ["-created_at"]
+
+    def device_count(self, obj):
+        """Display count of devices owned"""
+        return obj.devices.count()
+
+    device_count.short_description = "Devices"
 
 
 @admin.register(Device)
 class DeviceAdmin(admin.ModelAdmin):
     """Admin for Device model"""
 
-    list_display = ["id", "platform", "device_token_short", "is_active", "last_notification_at", "created_at"]
+    list_display = [
+        "id",
+        "owner",
+        "platform",
+        "device_token_short",
+        "is_active",
+        "last_notification_at",
+        "created_at",
+    ]
     list_filter = ["platform", "is_active", "created_at"]
-    search_fields = ["device_token"]
+    search_fields = [
+        "device_token",
+        "owner__external_id",
+        "owner__name",
+        "owner__email",
+    ]
     readonly_fields = ["created_at", "updated_at"]
     ordering = ["-created_at"]
+    autocomplete_fields = ["owner"]
 
     def device_token_short(self, obj):
         """Display shortened device token"""
-        return f"{obj.device_token[:20]}..." if len(obj.device_token) > 20 else obj.device_token
+        return (
+            f"{obj.device_token[:20]}..."
+            if len(obj.device_token) > 20
+            else obj.device_token
+        )
 
     device_token_short.short_description = "Device Token"
 
@@ -46,6 +89,7 @@ class PushNotificationAdmin(admin.ModelAdmin):
         "retry_count",
         "error_message",
         "created_at",
+        "updated_at",
         "sent_at",
         "apns_id",
     ]
@@ -61,7 +105,15 @@ class PushNotificationAdmin(admin.ModelAdmin):
         (
             "Notification Content",
             {
-                "fields": ("title", "body", "badge", "sound", "category", "thread_id", "data"),
+                "fields": (
+                    "title",
+                    "body",
+                    "badge",
+                    "sound",
+                    "category",
+                    "thread_id",
+                    "data",
+                ),
             },
         ),
         (
@@ -79,6 +131,7 @@ class PushNotificationAdmin(admin.ModelAdmin):
                     "max_retries",
                     "error_message",
                     "created_at",
+                    "updated_at",
                     "sent_at",
                     "apns_id",
                 ),
